@@ -1,0 +1,683 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Native date/month controls already provide the only picker indicator that
+ * can reliably open the browser picker in Chrome, Edge and Safari. Several
+ * older field wrappers also render a Lucide calendar beside that input,
+ * producing two icons. Suppress only that redundant sibling; calendar icons
+ * used elsewhere in cards, buttons and headings are intentionally unaffected.
+ */
+:is(label, span, div):has(> input:is([type='date'], [type='datetime-local'], [type='month']))
+  > :is(.lucide-calendar, .lucide-calendar-days) {
+  display: none;
+}
+
+input:is([type='date'], [type='datetime-local'], [type='month'])::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.68;
+}
+
+input:is([type='date'], [type='datetime-local'], [type='month']):disabled::-webkit-calendar-picker-indicator {
+  cursor: default;
+  opacity: 0.35;
+}
+
+:root {
+  color: #172033;
+  background: #f7f8fb;
+  font-family: Inter, "Inter var", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Shared compact report filters. Dedicated rules are used because the local
+   source server does not generate every arbitrary Tailwind grid template. */
+.report-filter-scroll {
+  overflow-x: auto;
+}
+.report-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
+  gap: 8px;
+}
+@media (min-width: 640px) {
+  .report-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .report-filter-grid--invoice {
+    min-width: 980px;
+    grid-template-columns: repeat(2, minmax(130px, .9fr)) minmax(170px, 1.15fr) repeat(3, minmax(120px, .85fr)) max-content;
+  }
+  .report-filter-grid--financial {
+    min-width: 840px;
+    grid-template-columns: minmax(190px, 1.25fr) repeat(3, minmax(135px, 1fr)) max-content max-content;
+  }
+}
+
+/* Lead Management — approved compact CRM visual language. */
+.lead-module {
+  color: #07152b;
+}
+
+.lead-module .lead-card {
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.025);
+}
+
+.lead-module .lead-page-header h1 { font-size: 22px; line-height: 1.2; }
+.lead-module .lead-stat { min-height: 106px; }
+.lead-module .lead-form-section { padding: 20px; }
+.lead-module .lead-page-actions .lead-field { width: auto; min-width: 160px; }
+.lead-module .lead-filter-bar > select.lead-field {
+  width: auto;
+  min-width: 125px;
+  flex: 1 1 125px;
+}
+.lead-module .lead-filter-bar > .relative { min-width: 240px; }
+.lead-module .lead-report-filter-scroll {
+  overflow-x: auto;
+}
+.lead-module .lead-report-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+@media (min-width: 640px) {
+  .lead-module .lead-report-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .lead-module .lead-report-filter-grid {
+    min-width: 1110px;
+    grid-template-columns: minmax(230px, 1.45fr) repeat(5, minmax(112px, .8fr)) max-content max-content;
+  }
+}
+.lead-module .contact-filter-bar > .relative { min-width: 240px; }
+.lead-module .contact-filter-bar > select.lead-field {
+  width: auto;
+  min-width: 118px;
+  flex: 1 1 118px;
+}
+.lead-module .lead-button.bg-red-600 {
+  border-color: #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+.lead-module .lead-button.bg-red-600:hover { background: #b91c1c; }
+
+.lead-module .lead-card:hover {
+  border-color: #dbe2ea;
+}
+
+.lead-module .lead-stat-icon--red { background: #fff0f1; color: #ef1f2c; }
+.lead-module .lead-stat-icon--blue { background: #eef2ff; color: #315efb; }
+.lead-module .lead-stat-icon--amber { background: #fff7e7; color: #f59e0b; }
+.lead-module .lead-stat-icon--green { background: #eaf9f0; color: #16a34a; }
+.lead-module .lead-stat-icon--rose { background: #fff0f1; color: #ef1f2c; }
+.lead-module .contact-stat-icon--red { background: #fff0f1; color: #ef1f2c; }
+.lead-module .contact-stat-icon--green { background: #eaf9f0; color: #16a34a; }
+.lead-module .contact-stat-icon--amber { background: #fff7e7; color: #f59e0b; }
+.lead-module .contact-stat-icon--violet { background: #f3ecff; color: #7c3aed; }
+.lead-module .company-filter-bar > select.lead-field {
+  width: auto;
+  min-width: 112px;
+  flex: 1 1 112px;
+}
+.lead-module .company-filter-bar > .relative {
+  min-width: 275px;
+  flex: 1.6 1 275px;
+}
+.lead-module .company-filter-bar > div:last-child {
+  display: flex;
+  flex: 0 0 100%;
+  width: 100%;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+.lead-module .company-filter-bar > div:last-child > a {
+  border-color: #ff7078;
+  color: #e3262e;
+  background: #fff;
+}
+.lead-module .company-filter-bar > div:last-child > a:hover {
+  background: #fff5f5;
+}
+
+.lead-module table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Keep Role Management controls compact and aligned with standard application forms. */
+.role-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: auto;
+}
+
+.role-form-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 96px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.role-form-action-secondary {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #0f172a;
+}
+
+.role-form-action-primary {
+  border: 1px solid #dc2626;
+  background: #dc2626;
+  color: #fff;
+}
+
+.role-form-action:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.role-permission-table .role-permission-child-cell {
+  padding-left: 64px !important;
+}
+
+.role-permission-child-name {
+  display: block;
+  position: relative;
+}
+
+.role-permission-child-name::before {
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  background: #cbd5e1;
+  content: '';
+}
+
+@media (max-width: 639px) {
+  .role-form-actions {
+    width: 100%;
+  }
+
+  .role-form-action {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .role-permission-table .role-permission-child-cell {
+    padding-left: 44px !important;
+  }
+}
+
+.lead-module thead {
+  background: #fafbfc;
+  color: #27344a;
+}
+
+.lead-module th {
+  height: 48px;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.lead-module tbody td {
+  height: 54px;
+  font-size: 12px;
+  color: #233149;
+}
+
+.lead-module tbody tr:hover td {
+  background: #fcfcfd;
+}
+
+.lead-module select.lead-field {
+  min-width: 145px;
+  cursor: pointer;
+}
+
+.lead-module input::placeholder,
+.lead-module textarea::placeholder {
+  color: #8b97aa;
+}
+
+.lead-module textarea.lead-field {
+  resize: vertical;
+}
+
+.lead-module button:disabled {
+  cursor: not-allowed;
+}
+
+.lead-module .lead-chart-card {
+  min-height: 286px;
+}
+
+@media (min-width: 1280px) {
+  .lead-module .lead-page-header {
+    min-height: 50px;
+  }
+
+  .lead-module .lead-stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .lead-module .lead-page-actions,
+  .lead-module .lead-page-actions > * {
+    width: 100%;
+  }
+
+  .lead-module .lead-pager {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body.vendor-statement-print {
+    background: white;
+  }
+
+  body.vendor-statement-print aside,
+  body.vendor-statement-print header,
+  body.vendor-statement-print .vendor-screen-only {
+    display: none !important;
+  }
+
+  body.vendor-statement-print [class*="lg:pl-"] {
+    padding-left: 0 !important;
+  }
+
+  body.vendor-statement-print main {
+    padding: 0 !important;
+  }
+
+  body.vendor-statement-print * {
+    visibility: hidden !important;
+  }
+
+  body.vendor-statement-print .vendor-statement-preview {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 210mm !important;
+    max-width: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    visibility: visible !important;
+  }
+
+  body.vendor-statement-print .vendor-statement-preview * {
+    visibility: visible !important;
+  }
+
+  body.vendor-statement-print .vendor-statement-sheet {
+    min-height: 297mm;
+    padding: 15mm 14mm !important;
+  }
+
+  body.vendor-statement-print .vendor-statement-preview thead {
+    display: table-header-group;
+  }
+
+  body.vendor-statement-print .vendor-statement-preview tr {
+    break-inside: avoid;
+  }
+
+  body.expense-print {
+    background: white;
+  }
+
+  body.expense-print aside,
+  body.expense-print header,
+  body.expense-print .expense-view > div:first-child,
+  body.expense-print .expense-view > .flex {
+    display: none !important;
+  }
+
+  body.expense-print [class*="lg:pl-"] {
+    padding-left: 0 !important;
+  }
+
+  body.expense-print main {
+    padding: 12mm !important;
+  }
+
+  body.expense-print .expense-view {
+    display: block !important;
+  }
+
+  body.expense-print .expense-view article {
+    margin-bottom: 5mm;
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+}
+
+.vendor-statement-sheet {
+  min-height: 1120px;
+  padding: 46px 52px 64px;
+  color: #333;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+
+.vendor-statement-company {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1fr);
+  gap: 40px;
+  align-items: center;
+}
+
+.vendor-statement-logo-wrap {
+  min-height: 90px;
+  display: flex;
+  align-items: center;
+}
+
+.vendor-statement-logo {
+  display: block;
+  width: min(100%, 320px);
+  max-height: 105px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.vendor-statement-wordmark {
+  color: #252525;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.vendor-statement-company-details {
+  text-align: right;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.vendor-statement-company-details h2 {
+  margin: 0 0 3px;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.vendor-statement-company-details .mt-2,
+.vendor-statement-recipient .mt-2 {
+  margin-top: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 400;
+  line-height: inherit;
+}
+
+.vendor-statement-heading-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(360px, 1fr);
+  gap: 70px;
+  align-items: start;
+  margin-top: 30px;
+}
+
+.vendor-statement-recipient {
+  padding-top: 5px;
+  line-height: 1.45;
+}
+
+.vendor-statement-recipient .vendor-statement-to {
+  margin: 0 0 5px;
+  font-weight: 800;
+}
+
+.vendor-statement-recipient h3 {
+  margin: 0;
+  color: #4285e8;
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.vendor-statement-recipient > p {
+  margin: 3px 0;
+}
+
+.vendor-statement-summary h1 {
+  margin: 0;
+  border-bottom: 2px solid #111;
+  padding-bottom: 6px;
+  color: #050505;
+  font-size: 24px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.vendor-statement-period {
+  margin: 0;
+  border-bottom: 1px solid #111;
+  padding: 7px 0;
+  font-size: 14px;
+  text-align: right;
+}
+
+.vendor-statement-summary-box {
+  margin-top: 23px;
+}
+
+.vendor-statement-summary-box h4 {
+  margin: 0 0 4px;
+  background: #e8e8e8;
+  padding: 8px 9px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.vendor-statement-summary-box > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 5px 1px;
+  font-size: 14px;
+}
+
+.vendor-statement-summary-box > div b {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.vendor-statement-summary-box > div.is-total {
+  margin-top: 1px;
+  border-top: 1px solid #111;
+  padding-top: 8px;
+}
+
+.vendor-statement-table-wrap {
+  margin-top: 46px;
+}
+
+.vendor-statement-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.vendor-statement-table th {
+  background: #383a36;
+  color: white;
+  padding: 9px 7px;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.vendor-statement-table th:nth-child(n + 4),
+.vendor-statement-table td:nth-child(n + 4) {
+  text-align: right;
+}
+
+.vendor-statement-table th:nth-child(1) { width: 15%; }
+.vendor-statement-table th:nth-child(2) { width: 22%; }
+.vendor-statement-table th:nth-child(3) { width: 29%; }
+.vendor-statement-table th:nth-child(4) { width: 11%; }
+.vendor-statement-table th:nth-child(5) { width: 11%; }
+.vendor-statement-table th:nth-child(6) { width: 12%; }
+
+.vendor-statement-table td {
+  border-bottom: 1px solid #ddd;
+  padding: 10px 7px;
+  vertical-align: top;
+}
+
+.vendor-statement-table td:nth-child(n + 4) {
+  white-space: nowrap;
+}
+
+.vendor-statement-table td:nth-child(2) b,
+.vendor-statement-table td:nth-child(2) span,
+.vendor-statement-table td:nth-child(2) a {
+  display: block;
+}
+
+.vendor-statement-table td:nth-child(2) a {
+  margin-top: 2px;
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.vendor-statement-opening-row td:nth-child(2) {
+  font-weight: 700;
+}
+
+.vendor-statement-table .vendor-statement-empty {
+  padding: 28px 8px;
+  text-align: center;
+}
+
+.vendor-statement-table tfoot td {
+  border-bottom: 0;
+  padding-top: 14px;
+  font-weight: 800;
+}
+
+@media (max-width: 800px) {
+  .vendor-statement-sheet {
+    min-height: 0;
+    padding: 28px 24px 44px;
+  }
+
+  .vendor-statement-company,
+  .vendor-statement-heading-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .vendor-statement-company-details,
+  .vendor-statement-summary h1,
+  .vendor-statement-period {
+    text-align: left;
+  }
+
+  .vendor-statement-table-wrap {
+    margin-top: 30px;
+    overflow-x: auto;
+  }
+
+  .vendor-statement-table {
+    min-width: 720px;
+  }
+}
+
+.expense-filter-row {
+  display: grid;
+  grid-template-columns: minmax(250px, 1.7fr) repeat(4, minmax(120px, 0.8fr)) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.expense-filter-row > * {
+  min-width: 0;
+}
+
+@media (max-width: 800px) {
+  .expense-filter-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .expense-filter-row > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@layer components {
+  .form-control {
+    @apply h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-[#06134a] outline-none transition placeholder:text-slate-400 focus:border-red-400 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500;
+  }
+
+  .primary-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-600 px-5 text-sm font-black text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .secondary-button {
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-[#06134a] transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .page-button {
+    @apply grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white text-[#06134a] transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+}
+@media (min-width: 1100px) {
+  .company-details-overview {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .company-info-panel,
+  .company-contacts-panel,
+  .company-summary-panel {
+    grid-column: span 4 / span 4;
+  }
+  .company-activities-panel {
+    grid-column: span 8 / span 8;
+  }
+}
+
+@media (min-width: 1450px) {
+  .company-info-row {
+    grid-template-columns: 125px minmax(0, 1fr);
+  }
+}
