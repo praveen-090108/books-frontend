@@ -40,6 +40,9 @@ const masterLinks = [
   { to: '/settings/masters/expense-accounts', label: 'Expense Accounts', description: 'Manage active Expense Account dropdown values and historical usage.' },
   { to: '/settings/masters/domain-industries', label: 'Domains / Industries', description: 'Manage domains available for Fixed Cost Projects.' },
 ];
+const integrationLinks = [
+  { to: '/settings/irp', label: 'IRN / E-Invoice Settings', description: 'Manage encrypted EY IRP 5 Sandbox and Production credentials.' },
+];
 
 const defaultOrganization = {
   organizationName: 'IntelliaTech Pvt. Ltd.',
@@ -50,6 +53,8 @@ const defaultOrganization = {
   currency: 'INR - Indian Rupee',
   country: 'India',
   state: 'Tamil Nadu (33)',
+  city: '',
+  pinCode: '',
   address: 'S61 Stirling Highway, Cottesloe, Tamil Nadu',
   tdsBaseType: 'TAXABLE_VALUE',
 };
@@ -100,6 +105,8 @@ function organizationFromRecord(record) {
     currency: record.paymentMode || defaultOrganization.currency,
     country: notes.country || defaultOrganization.country,
     state: notes.state || defaultOrganization.state,
+    city: notes.city || defaultOrganization.city,
+    pinCode: notes.pinCode || notes.pincode || notes.postalCode || defaultOrganization.pinCode,
     address: notes.address || record.partyCity || defaultOrganization.address,
     tdsBaseType: notes.tdsBaseType || defaultOrganization.tdsBaseType,
   };
@@ -171,12 +178,12 @@ function organizationPayload(form) {
     partyName: form.organizationName,
     partyEmail: form.email,
     partyPhone: form.phone,
-    partyCity: form.address,
+    partyCity: form.city,
     category: 'Organization',
     status: 'Active',
     referenceNumber: form.gstin,
     paymentMode: form.currency,
-    notes: JSON.stringify({ pan: form.pan, country: form.country, state: form.state, address: form.address, tdsBaseType: form.tdsBaseType }),
+    notes: JSON.stringify({ pan: form.pan, country: form.country, state: form.state, city: form.city, pinCode: form.pinCode, address: form.address, tdsBaseType: form.tdsBaseType }),
   };
 }
 
@@ -373,6 +380,7 @@ export function SettingsHomePage() {
           meta={`${usersQuery.data?.totalRecords || 0} users / ${rolesQuery.data?.totalRecords || 0} roles`}
         />
         {canManageRoles && <SettingsCard title="Master Data" icon={BadgeCheck} tone="green" links={masterLinks} meta="Database-driven application values" />}
+        {canManageRoles && <SettingsCard title="Integrations" icon={ShieldCheck} tone="red" links={integrationLinks} meta="Secure external service configuration" />}
       </div>
 
       <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -427,6 +435,10 @@ export function OrganizationProfilePage() {
       setError('Organization name and email are required.');
       return;
     }
+    if (form.country === 'India' && !/^\d{6}$/.test(form.pinCode.trim())) {
+      setError('PIN Code must contain exactly 6 digits for an Indian organization.');
+      return;
+    }
     mutation.mutate(organizationPayload(form));
   }
 
@@ -450,6 +462,8 @@ export function OrganizationProfilePage() {
           <SelectField label="Base Currency" value={form.currency} onChange={(value) => updateField('currency', value)} options={['INR - Indian Rupee', 'USD - US Dollar', 'AUD - Australian Dollar']} />
           <SelectField label="Country" value={form.country} onChange={(value) => updateField('country', value)} options={['India', 'Australia', 'United States', 'United Kingdom', 'UAE', 'Canada']} />
           <SelectField label="State" value={form.state} onChange={(value) => updateField('state', value)} options={['Tamil Nadu (33)', 'Madhya Pradesh (23)', 'Maharashtra (27)', 'Karnataka (29)', 'Delhi (07)']} />
+          <TextField label="City" value={form.city} onChange={(value) => updateField('city', value)} required />
+          <TextField label="PIN Code" value={form.pinCode} onChange={(value) => updateField('pinCode', value.replace(/\D/g, '').slice(0, 6))} required />
           <SelectField label="TDS Calculation Base" value={form.tdsBaseType} onChange={(value) => updateField('tdsBaseType', value)} options={['INVOICE_TOTAL', 'TAXABLE_VALUE']} />
           <TextField label="Billing Address" value={form.address} onChange={(value) => updateField('address', value)} wide />
         </div>

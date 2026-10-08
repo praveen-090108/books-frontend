@@ -52,6 +52,7 @@ import { ExpenseAccountMasterPage } from '../features/settings/ExpenseAccountMas
 import { BankAccountMasterPage } from '../features/settings/BankAccountMasterPage.jsx';
 import { DomainIndustryMasterPage } from '../features/settings/DomainIndustryMasterPage.jsx';
 import { ItemCategoryMasterPage } from '../features/settings/ItemCategoryMasterPage.jsx';
+import { IrpSettingsPage } from '../features/settings/IrpSettingsPage.jsx';
 import { useAuthStore } from '../store/authStore.js';
 import {
   CompaniesPage, ContactsPage, EntityDetailsPage, LeadDashboardPage,
@@ -235,6 +236,7 @@ export function AppRoutes() {
         <Route path="/settings/masters/bank-accounts" element={<RequireAuth roles={['admin']}><BankAccountMasterPage /></RequireAuth>} />
         <Route path="/settings/masters/domain-industries" element={<RequireAuth roles={['admin']}><DomainIndustryMasterPage /></RequireAuth>} />
         <Route path="/settings/masters/item-categories" element={<RequireAuth roles={['admin']}><ItemCategoryMasterPage /></RequireAuth>} />
+        <Route path="/settings/irp" element={<RequireAuth roles={['admin']}><IrpSettingsPage /></RequireAuth>} />
         <Route path="/settings/access-denied" element={<SettingsAccessDeniedPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

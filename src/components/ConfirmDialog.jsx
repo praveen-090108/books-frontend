@@ -5,6 +5,7 @@ export function ConfirmDialog({
   title = 'Delete record?',
   message = 'This action cannot be undone.',
   confirmLabel = 'Delete',
+  loadingLabel,
   cancelLabel = 'Cancel',
   loading = false,
   onConfirm,
@@ -34,7 +35,7 @@ export function ConfirmDialog({
             {cancelLabel}
           </button>
           <button type="button" onClick={onConfirm} disabled={loading} className="h-10 rounded-lg bg-red-600 px-5 text-sm font-black text-white shadow-sm shadow-red-200 hover:bg-red-700 disabled:opacity-60">
-            {loading ? 'Deleting...' : confirmLabel}
+            {loading ? (loadingLabel || `${confirmLabel}...`) : confirmLabel}
           </button>
         </div>
       </div>

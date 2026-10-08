@@ -5,9 +5,11 @@ import {
   CalendarDays,
   CircleDollarSign,
   CheckSquare,
+  Copy,
   ChevronDown,
   Edit3,
   Eye,
+  FileCheck2,
   FilePlus2,
   Filter,
   HandCoins,
@@ -775,6 +777,13 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
     queryFn: () => invoiceLifecycleApi.get(id),
     enabled: documentType === 'invoices' && Boolean(id),
   });
+  const eInvoiceQuery = useQuery({
+    queryKey: ['e-invoice', documentType, id],
+    queryFn: () => documentType === 'creditNotes'
+      ? invoiceLifecycleApi.getCreditNoteEInvoice(id)
+      : invoiceLifecycleApi.getEInvoice(id),
+    enabled: ['invoices', 'creditNotes'].includes(documentType) && Boolean(id),
+  });
   const documentsQuery = useQuery({
     queryKey: ['records', 'sales', documentType, 'viewer-list'],
     queryFn: () => recordsApi.list({ module: 'sales', type: documentType, page: 0, size: 10, sort: 'recordDate,desc' }),
@@ -823,6 +832,8 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
   const [creditAllocationDeleteOpen, setCreditAllocationDeleteOpen] = useState(false);
   const [voidOpen, setVoidOpen] = useState(false);
   const [voidReason, setVoidReason] = useState('');
+  const [generateIrnOpen, setGenerateIrnOpen] = useState(false);
+  const [cancelIrnOpen, setCancelIrnOpen] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
   const [quoteTab, setQuoteTab] = useState('details');
   const updateStatusMutation = useMutation({
@@ -927,6 +938,42 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
       navigate(`/sales/invoices/${created.id}/edit`);
     },
     onError: (error) => setActionMessage(error?.message || 'Unable to clone invoice. Please try again.'),
+  });
+  const generateIrnMutation = useMutation({
+    mutationFn: () => documentType === 'creditNotes'
+      ? invoiceLifecycleApi.generateCreditNoteIrn(id)
+      : invoiceLifecycleApi.generateIrn(id),
+    onSuccess: (generated) => {
+      queryClient.setQueryData(['e-invoice', documentType, id], generated);
+      setGenerateIrnOpen(false);
+      setActionMessage(`IRN generated successfully: ${generated.irn}`);
+    },
+    onError: (error) => {
+      setGenerateIrnOpen(false);
+      setActionMessage(apiErrorMessage(error, 'Unable to generate IRN.'));
+      queryClient.invalidateQueries({ queryKey: ['e-invoice', documentType, id] });
+    },
+  });
+  const refreshIrnMutation = useMutation({
+    mutationFn: () => documentType === 'creditNotes'
+      ? invoiceLifecycleApi.refreshCreditNoteIrn(id)
+      : invoiceLifecycleApi.refreshIrn(id),
+    onSuccess: (refreshed) => {
+      queryClient.setQueryData(['e-invoice', documentType, id], refreshed);
+      setActionMessage('IRN details refreshed from IRP successfully.');
+    },
+    onError: (error) => setActionMessage(apiErrorMessage(error, 'Unable to retrieve IRN details.')),
+  });
+  const cancelIrnMutation = useMutation({
+    mutationFn: (payload) => documentType === 'creditNotes'
+      ? invoiceLifecycleApi.cancelCreditNoteIrn({ creditNoteId: id, ...payload })
+      : invoiceLifecycleApi.cancelIrn({ invoiceId: id, ...payload }),
+    onSuccess: (cancelled) => {
+      queryClient.setQueryData(['e-invoice', documentType, id], cancelled);
+      setCancelIrnOpen(false);
+      setActionMessage('IRN cancelled successfully.');
+    },
+    onError: (error) => setActionMessage(apiErrorMessage(error, 'Unable to cancel IRN.')),
   });
   const paymentMutation = useMutation({
     mutationFn: (paymentValues) => editingPayment
@@ -1034,6 +1081,7 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
   const tax = Number(totals.taxAmount || 0);
   const total = Number(totals.grandTotal || salesDocument.amount || 0);
   const lifecycle = documentType === 'invoices' ? lifecycleQuery.data : null;
+  const eInvoice = ['invoices', 'creditNotes'].includes(documentType) ? eInvoiceQuery.data : null;
   const sourceInvoiceLifecycle = documentType === 'creditNotes' ? sourceInvoiceLifecycleQuery.data : null;
   const creditNoteLink = sourceInvoiceLifecycle?.creditNotes?.find((link) => Number(link.creditNoteId) === Number(id));
   const creditsUsed = documentType === 'creditNotes'
@@ -1080,6 +1128,7 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
       companyProfile,
       billTo,
       documentType,
+      eInvoice,
     });
   };
   const sendDocument = (mode) => {
@@ -1091,6 +1140,9 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
     setShareDialogOpen(true);
   };
   const isLockedInvoice = documentType === 'invoices' && currentStatus === 'Void';
+  const isEInvoiceDocument = documentType === 'invoices' || documentType === 'creditNotes';
+  const creditNoteIrnEligible = documentType !== 'creditNotes'
+    || (sourceInvoiceId > 0 && currentStatus !== 'Draft' && Number(total || 0) > 0);
   const displayedDocument = documentType === 'invoices' || documentType === 'creditNotes'
     ? { ...salesDocument, status: currentStatus, balanceAmount: balanceDue }
     : salesDocument;
@@ -1204,6 +1256,24 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
                 <ReceiptText className="h-4 w-4" /> Record Payment
               </button>
             )}
+            {isEInvoiceDocument && eInvoice?.status === 'GENERATED' && (
+              <button
+                disabled={refreshIrnMutation.isPending}
+                onClick={() => refreshIrnMutation.mutate()}
+                className="inline-flex h-9 items-center gap-2 rounded-lg px-3 hover:bg-slate-100 disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshIrnMutation.isPending ? 'animate-spin' : ''}`} /> Get IRN Details
+              </button>
+            )}
+            {isEInvoiceDocument && (
+              <button
+                disabled={generateIrnMutation.isPending || ['GENERATED', 'CANCELLED'].includes(eInvoice?.status) || isLockedInvoice || !creditNoteIrnEligible}
+                onClick={() => setGenerateIrnOpen(true)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg px-3 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <ReceiptText className="h-4 w-4" /> {eInvoice?.status === 'GENERATED' ? 'IRN Generated' : documentType === 'creditNotes' ? 'Push to IRP' : 'Generate IRN'}
+              </button>
+            )}
             {documentType === 'invoices' && invoiceActions.reminder && (
               <button onClick={() => setReminderDialogOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-lg px-3 hover:bg-slate-100">
                 <Send className="h-4 w-4" /> Send Reminder
@@ -1221,17 +1291,19 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
                 ...(invoiceActions.createCreditNote ? [['Create Credit Note', () => creditNoteMutation.mutate()]] : []),
                 ...(invoiceActions.cloneInvoice ? [['Clone', () => cloneMutation.mutate()]] : []),
                 ...(invoiceActions.voidInvoice ? [['Void', () => { setOpenMenu(''); setVoidOpen(true); }]] : []),
+                ...(eInvoice?.status === 'GENERATED' ? [['Cancel IRN', () => { setOpenMenu(''); setCancelIrnOpen(true); }, 'danger']] : []),
                 ...(invoiceActions.deleteInvoice ? [['Delete', () => { setOpenMenu(''); setDeleteOpen(true); }, 'danger']] : []),
               ] : [
                 ['Mark As Sent', () => updateStatusMutation.mutate('Sent')],
                 ['Close', () => updateStatusMutation.mutate('Closed')],
+                ...(documentType === 'creditNotes' && eInvoice?.status === 'GENERATED' ? [['Cancel IRN', () => { setOpenMenu(''); setCancelIrnOpen(true); }, 'danger']] : []),
                 ['Delete', () => { setOpenMenu(''); setDeleteOpen(true); }, 'danger'],
               ]}
             />
           </div>
-          {(actionMessage || updateStatusMutation.isPending || convertMutation.isPending || creditNoteMutation.isPending || cloneMutation.isPending || paymentMutation.isPending || lifecycleQuery.isLoading || sourceInvoiceLifecycleQuery.isLoading || communicationMutation.isPending || reminderMutation.isPending || reversePaymentMutation.isPending || deletePaymentMutation.isPending || voidMutation.isPending || removeCreditNoteMutation.isPending) && (
+          {(actionMessage || generateIrnMutation.isPending || refreshIrnMutation.isPending || cancelIrnMutation.isPending || updateStatusMutation.isPending || convertMutation.isPending || creditNoteMutation.isPending || cloneMutation.isPending || paymentMutation.isPending || lifecycleQuery.isLoading || sourceInvoiceLifecycleQuery.isLoading || communicationMutation.isPending || reminderMutation.isPending || reversePaymentMutation.isPending || deletePaymentMutation.isPending || voidMutation.isPending || removeCreditNoteMutation.isPending) && (
             <div className="border-b border-slate-200 bg-blue-50 px-5 py-2 text-xs font-bold text-blue-700">
-              {lifecycleQuery.isLoading || sourceInvoiceLifecycleQuery.isLoading ? 'Loading document settlement...' : updateStatusMutation.isPending ? 'Updating status...' : convertMutation.isPending ? `Converting ${documentConfig.lowerLabel}...` : creditNoteMutation.isPending ? 'Creating credit note...' : cloneMutation.isPending ? 'Cloning invoice...' : paymentMutation.isPending ? 'Saving payment...' : communicationMutation.isPending ? 'Saving communication...' : reminderMutation.isPending ? 'Saving reminder...' : reversePaymentMutation.isPending ? 'Reversing payment...' : deletePaymentMutation.isPending ? 'Deleting payment...' : voidMutation.isPending ? 'Voiding invoice...' : removeCreditNoteMutation.isPending ? 'Removing credit allocation...' : actionMessage}
+              {generateIrnMutation.isPending ? 'Submitting encrypted invoice data to IRP...' : refreshIrnMutation.isPending ? 'Retrieving encrypted IRN details from IRP...' : cancelIrnMutation.isPending ? 'Cancelling IRN with IRP...' : lifecycleQuery.isLoading || sourceInvoiceLifecycleQuery.isLoading ? 'Loading document settlement...' : updateStatusMutation.isPending ? 'Updating status...' : convertMutation.isPending ? `Converting ${documentConfig.lowerLabel}...` : creditNoteMutation.isPending ? 'Creating credit note...' : cloneMutation.isPending ? 'Cloning invoice...' : paymentMutation.isPending ? 'Saving payment...' : communicationMutation.isPending ? 'Saving communication...' : reminderMutation.isPending ? 'Saving reminder...' : reversePaymentMutation.isPending ? 'Reversing payment...' : deletePaymentMutation.isPending ? 'Deleting payment...' : voidMutation.isPending ? 'Voiding invoice...' : removeCreditNoteMutation.isPending ? 'Removing credit allocation...' : actionMessage}
             </div>
           )}
 
@@ -1255,6 +1327,15 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
               />
             ) : documentType === 'creditNotes' ? (
               <>
+                {eInvoice && (
+                  <EInvoiceStatusPanel
+                    eInvoice={eInvoice}
+                    cancelling={cancelIrnMutation.isPending}
+                    onCancel={() => setCancelIrnOpen(true)}
+                    onMessage={setActionMessage}
+                    onDownload={() => openPdfOrPrint('pdf')}
+                  />
+                )}
                 <CreditNoteAppliedInvoicesPanel
                   lifecycle={sourceInvoiceLifecycle}
                   link={creditNoteLink}
@@ -1262,7 +1343,7 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
                   removing={removeCreditNoteMutation.isPending}
                   onRemove={() => setCreditAllocationDeleteOpen(true)}
                 />
-                <InvoiceDocument invoice={displayedDocument} items={items} totals={totals} subtotal={subtotal} tax={tax} total={total} balanceDue={balanceDue} creditsUsed={creditsUsed} creditsRemaining={creditsRemaining} companyProfile={companyProfile} billTo={billTo} documentType={documentType} />
+                <InvoiceDocument invoice={displayedDocument} items={items} totals={totals} subtotal={subtotal} tax={tax} total={total} balanceDue={balanceDue} creditsUsed={creditsUsed} creditsRemaining={creditsRemaining} companyProfile={companyProfile} billTo={billTo} documentType={documentType} eInvoice={eInvoice} />
                 <CreditNoteInformationPanel invoice={salesDocument} lifecycle={sourceInvoiceLifecycle} totals={totals} subtotal={subtotal} total={total} />
               </>
             ) : (
@@ -1273,7 +1354,16 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
                     <Link to={`/project/${(storedDocumentNotes.invoiceType || salesDocument.category) === 'Staffing' ? 'staffing' : 'fixed-cost'}/${storedDocumentNotes.projectId}`} className="font-black text-blue-600">View Project →</Link>
                   </div>
                 )}
-                <InvoiceDocument invoice={displayedDocument} items={items} totals={totals} subtotal={subtotal} tax={tax} total={total} balanceDue={balanceDue} creditsApplied={creditsApplied} companyProfile={companyProfile} billTo={billTo} documentType={documentType} />
+                {(documentType === 'invoices' || documentType === 'creditNotes') && eInvoice && eInvoice.status !== 'NOT_GENERATED' && (
+                  <EInvoiceStatusPanel
+                    eInvoice={eInvoice}
+                    cancelling={cancelIrnMutation.isPending}
+                    onCancel={() => setCancelIrnOpen(true)}
+                    onMessage={setActionMessage}
+                    onDownload={() => openPdfOrPrint('pdf')}
+                  />
+                )}
+                <InvoiceDocument invoice={displayedDocument} items={items} totals={totals} subtotal={subtotal} tax={tax} total={total} balanceDue={balanceDue} creditsApplied={creditsApplied} companyProfile={companyProfile} billTo={billTo} documentType={documentType} eInvoice={eInvoice} />
                 {documentType === 'invoices' && lifecycle && (
                   <InvoiceLifecyclePanels
                     lifecycle={lifecycle}
@@ -1330,6 +1420,24 @@ function SalesDocumentViewPage({ documentType = 'invoices' }) {
         loading={reminderMutation.isPending}
         onClose={() => !reminderMutation.isPending && setReminderDialogOpen(false)}
         onSubmit={(values) => reminderMutation.mutate(values)}
+      />
+      <ConfirmDialog
+        open={generateIrnOpen}
+        title={documentType === 'creditNotes' ? 'Push Credit Note to IRP?' : 'Generate GST e-invoice IRN?'}
+        message={documentType === 'creditNotes'
+          ? 'This submits this Credit Note as document type CRN to IRP. Its IRN and QR code will remain separate from the original invoice.'
+          : 'This submits the finalized invoice to IRP. After a successful IRN generation, the invoice tax identity cannot be edited locally.'}
+        confirmLabel={documentType === 'creditNotes' ? 'Push to IRP' : 'Generate IRN'}
+        loadingLabel="Generating IRN..."
+        loading={generateIrnMutation.isPending}
+        onCancel={() => !generateIrnMutation.isPending && setGenerateIrnOpen(false)}
+        onConfirm={() => generateIrnMutation.mutate()}
+      />
+      <CancelIrnDialog
+        open={cancelIrnOpen}
+        loading={cancelIrnMutation.isPending}
+        onCancel={() => !cancelIrnMutation.isPending && setCancelIrnOpen(false)}
+        onConfirm={(payload) => cancelIrnMutation.mutate(payload)}
       />
       <ConfirmDialog
         open={deleteOpen}
@@ -2253,6 +2361,47 @@ function ReasonDialog({ open, title, message, reason, onReasonChange, confirmLab
   );
 }
 
+function CancelIrnDialog({ open, loading, onCancel, onConfirm }) {
+  const [reasonCode, setReasonCode] = useState('2');
+  const [remarks, setRemarks] = useState('');
+  const reasons = [
+    { value: '1', label: 'Duplicate' },
+    { value: '2', label: 'Data entry mistake' },
+    { value: '3', label: 'Order cancelled' },
+    { value: '4', label: 'Other' },
+  ];
+  useEffect(() => {
+    if (!open) return;
+    setReasonCode('2');
+    setRemarks('');
+  }, [open]);
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#06134a]/60 px-4 py-6">
+      <div className="w-full max-w-lg overflow-hidden rounded-xl border border-slate-200 bg-white text-[#06134a] shadow-2xl">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h2 className="text-lg font-black">Cancel GST e-invoice IRN</h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">IRP allows cancellation only within 24 hours. An active E-Way Bill can prevent cancellation.</p>
+        </div>
+        <div className="space-y-4 p-5">
+          <label className="block">
+            <span className="text-sm font-bold">Cancellation Reason</span>
+            <select value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold outline-none focus:border-red-300 focus:ring-4 focus:ring-red-100">
+              {reasons.map((reason) => <option key={reason.value} value={reason.value}>{reason.value} — {reason.label}</option>)}
+            </select>
+          </label>
+          <DialogTextarea label="Cancellation Remarks" value={remarks} onChange={(value) => setRemarks(value.slice(0, 100))} />
+          <p className="text-right text-xs font-bold text-slate-500">{remarks.length} / 100</p>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-slate-200 p-4">
+          <button disabled={loading} onClick={onCancel} className="h-10 rounded-lg border border-slate-200 px-5 text-sm font-black disabled:opacity-50">Close</button>
+          <button disabled={loading || !reasonCode} onClick={() => onConfirm({ reasonCode, remarks: remarks.trim() })} className="h-10 rounded-lg bg-red-600 px-5 text-sm font-black text-white disabled:opacity-50">{loading ? 'Cancelling...' : 'Cancel IRN'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InvoiceLifecyclePanels({ lifecycle, onEditPayment, onReversePayment, onDeletePayment, onDownloadReceipt, onViewReceipt, onEmailReceipt, onWhatsAppReceipt }) {
   const activePayments = (lifecycle.payments || []).filter((payment) => !payment.reversed);
   const lifecycleCurrency = normalizeCurrencyCode(lifecycle.currency);
@@ -2329,12 +2478,43 @@ function InvoiceLifecyclePanels({ lifecycle, onEditPayment, onReversePayment, on
         )}
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-2">
         <HistoryPanel title="Reminder History" empty="No reminders sent." rows={(lifecycle.reminders || []).map((reminder) => ({ key: reminder.id, title: `${reminder.channel} • ${reminder.deliveryStatus}`, detail: reminder.recipient || '-', date: reminder.sentAt || reminder.scheduledAt || reminder.createdAt }))} />
         <HistoryPanel title="Communication History" empty="No invoice communications." rows={(lifecycle.communications || []).map((communication) => ({ key: communication.id, title: `${communication.communicationType} • ${communication.deliveryStatus}`, detail: communication.recipient || '-', date: communication.sentAt || communication.scheduledAt || communication.createdAt }))} />
-        <HistoryPanel title="Linked Credit Notes" empty="No credit notes linked." rows={(lifecycle.creditNotes || []).map((credit) => ({ key: credit.id, title: credit.creditNoteNumber, detail: formatCurrency(Number(credit.amountApplied || 0), lifecycleCurrency), date: credit.createdAt }))} />
       </div>
+      <LinkedCreditNotesPanel creditNotes={lifecycle.creditNotes || []} currency={lifecycleCurrency} invoiceTotal={Number(lifecycle.invoiceTotal || 0)} />
     </div>
+  );
+}
+
+function LinkedCreditNotesPanel({ creditNotes, currency, invoiceTotal }) {
+  const creditedTotal = creditNotes.reduce((sum, credit) => sum + Number(credit.amountApplied || 0), 0);
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <h2 className="text-base font-black">Linked Credit Notes</h2>
+        <span className="text-xs font-bold text-slate-500">Remaining invoice value: {formatCurrency(Math.max(0, invoiceTotal - creditedTotal), currency)}</span>
+      </div>
+      {!creditNotes.length ? <p className="p-5 text-sm font-semibold text-slate-500">No credit notes linked.</p> : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>
+              {['Credit Note', 'Date', 'Amount', 'IRN Status', 'Credited Amount', 'Credit Remaining'].map((heading) => <th key={heading} className="px-4 py-3 font-black">{heading}</th>)}
+            </tr></thead>
+            <tbody className="divide-y divide-slate-100">{creditNotes.map((credit) => (
+              <tr key={credit.id}>
+                <td className="px-4 py-4"><Link to={`/sales/credit-notes/${credit.creditNoteId}`} className="font-black text-blue-600 hover:underline">{credit.creditNoteNumber}</Link></td>
+                <td className="whitespace-nowrap px-4 py-4">{formatDate(credit.creditNoteDate)}</td>
+                <td className="whitespace-nowrap px-4 py-4 font-bold">{formatCurrency(Number(credit.creditNoteAmount || 0), currency)}</td>
+                <td className="px-4 py-4"><StatusBadge value={String(credit.eInvoiceStatus || 'NOT_GENERATED').replaceAll('_', ' ')} /></td>
+                <td className="whitespace-nowrap px-4 py-4 font-bold">{formatCurrency(Number(credit.amountApplied || 0), currency)}</td>
+                <td className="whitespace-nowrap px-4 py-4 font-bold">{formatCurrency(Number(credit.remainingBalance || 0), currency)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -2583,8 +2763,9 @@ function recalculateStoredSalesDocument(source, notes, companyProfile) {
     : 0;
   const taxAmount = cgst + sgst + igst;
   const rawGrandTotal = taxableAmount + taxAmount;
-  const isInvoice = String(source?.type || '').toLowerCase() === 'invoices';
-  const grandTotal = isInvoice ? roundCurrency(rawGrandTotal) : Math.round(rawGrandTotal);
+  const storedDocumentType = String(source?.type || '').toLowerCase();
+  const usesExactCurrencyTotal = storedDocumentType === 'invoices' || storedDocumentType === 'creditnotes';
+  const grandTotal = usesExactCurrencyTotal ? roundCurrency(rawGrandTotal) : Math.round(rawGrandTotal);
   const taxRate = calculatedItems.find((item) => Number(item.taxRate) > 0)?.taxRate || 18;
   const totals = {
     ...previousTotals,
@@ -2596,7 +2777,7 @@ function recalculateStoredSalesDocument(source, notes, companyProfile) {
     igst: roundCurrency(igst),
     taxAmount: roundCurrency(taxAmount),
     grandTotal: roundCurrency(grandTotal),
-    roundOff: isInvoice ? 0 : roundCurrency(grandTotal - rawGrandTotal),
+    roundOff: usesExactCurrencyTotal ? 0 : roundCurrency(grandTotal - rawGrandTotal),
     taxMode: gstMode,
     cgstRate: gstMode === 'CGST_SGST' ? Number(taxRate) / 2 : 0,
     sgstRate: gstMode === 'CGST_SGST' ? Number(taxRate) / 2 : 0,
@@ -2719,12 +2900,12 @@ function sharePaymentReceipt({ lifecycle, payment, invoice, channel }) {
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(`${subject}\n\n${body}`)}`, '_blank', 'noopener,noreferrer');
 }
 
-function openInvoicePrintWindow({ invoice, items, totals, subtotal, tax, total, balanceDue, creditsApplied = 0, paymentsReceived = 0, mode, companyProfile, billTo, documentType = 'invoices' }) {
+function openInvoicePrintWindow({ invoice, items, totals, subtotal, tax, total, balanceDue, creditsApplied = 0, paymentsReceived = 0, mode, companyProfile, billTo, documentType = 'invoices', eInvoice = null }) {
   const printWindow = window.open('', '_blank', 'width=1000,height=900');
   if (!printWindow) return;
 
   printWindow.document.open();
-  printWindow.document.write(buildInvoicePrintHtml({ invoice, items, totals, subtotal, tax, total, balanceDue, creditsApplied, paymentsReceived, mode, companyProfile, billTo, documentType }));
+  printWindow.document.write(buildInvoicePrintHtml({ invoice, items, totals, subtotal, tax, total, balanceDue, creditsApplied, paymentsReceived, mode, companyProfile, billTo, documentType, eInvoice }));
   printWindow.document.close();
   printWindow.focus();
   window.setTimeout(() => {
@@ -2732,7 +2913,7 @@ function openInvoicePrintWindow({ invoice, items, totals, subtotal, tax, total, 
   }, 400);
 }
 
-function buildInvoicePrintHtml({ invoice, items, totals, subtotal, tax, total, balanceDue, creditsApplied = 0, paymentsReceived = 0, mode, companyProfile, billTo, documentType = 'invoices' }) {
+function buildInvoicePrintHtml({ invoice, items, totals, subtotal, tax, total, balanceDue, creditsApplied = 0, paymentsReceived = 0, mode, companyProfile, billTo, documentType = 'invoices', eInvoice = null }) {
   const config = documentViewConfig(documentType);
   const filenamePrefix = documentType === 'quotes' ? 'Proforma' : config.label.replace(/\s+/g, '_');
   const title = mode === 'pdf'
@@ -2782,27 +2963,38 @@ function buildInvoicePrintHtml({ invoice, items, totals, subtotal, tax, total, b
   const balanceLine = documentType === 'invoices'
     ? `<p class="line total"><span>Balance Due</span><span>${escapeHtml(formatCurrency(balanceDue, documentCurrency))}</span></p>`
     : '';
+  const eInvoiceBlock = (documentType === 'invoices' || documentType === 'creditNotes') && eInvoice?.status === 'GENERATED' && eInvoice.irn ? `
+    <section class="einvoice-block">
+      ${eInvoice.qrCodeDataUrl ? `<img src="${escapeHtml(eInvoice.qrCodeDataUrl)}" alt="Government signed e-Invoice QR code" />` : '<div class="qr-empty">Signed QR code unavailable</div>'}
+      <div class="einvoice-details">
+        <p><span>IRN :</span><b>${escapeHtml(eInvoice.irn)}</b></p>
+        <p><span>Ack No. :</span><b>${escapeHtml(eInvoice.acknowledgementNumber || '-')}</b></p>
+        <p><span>Ack Date :</span><b>${escapeHtml(formatDateTime(eInvoice.acknowledgementDate))}</b></p>
+        <small>e-Invoicing detail(s) generated from the Government's e-Invoicing system.</small>
+      </div>
+    </section>` : '';
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(title)}</title>
   <style>
-    @page { size: A4; margin: 12mm; }
+    @page { size: A4; margin: 0; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #f1f5f9; color: #000; font-family: Georgia, "Times New Roman", serif; }
+    html, body { width: 210mm; margin: 0; padding: 0; }
+    body { background: #f1f5f9; color: #000; font-family: "Times New Roman", Times, serif; font-size: 12px; line-height: 1.3; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .screen-actions { position: sticky; top: 0; display: flex; justify-content: flex-end; gap: 10px; padding: 12px 18px; background: #fff; border-bottom: 1px solid #e2e8f0; font-family: Arial, sans-serif; }
     .screen-actions button { height: 36px; border: 1px solid #d8e0ec; border-radius: 8px; background: #fff; padding: 0 14px; font-weight: 700; cursor: pointer; }
     .screen-actions .primary { border-color: #dc2626; background: #dc2626; color: #fff; }
     .page { position: relative; overflow: hidden; width: 210mm; min-height: 297mm; margin: 18px auto; background: #fff; padding: 16mm; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.16); }
-    .top { display: grid; grid-template-columns: 165px minmax(0, 1fr) 150px; gap: 18px; align-items: start; min-height: 92px; }
-    .company-details { min-width: 0; font-size: 13px; line-height: 1.35; }
-    .brand-logo { width: 165px; height: 76px; object-fit: contain; object-position: left top; }
+    .top { display: grid; grid-template-columns: 165px minmax(0, 1fr) 150px; gap: 18px; align-items: center; min-height: 92px; }
+    .company-details { min-width: 0; font-size: 12px; line-height: 1.3; }
+    .brand-logo { width: 165px; height: 76px; object-fit: contain; object-position: left center; align-self: center; }
     .mark { margin-top: 28px; font: 900 27px Arial, sans-serif; letter-spacing: 0.03em; color: #020617; white-space: nowrap; }
     .mark b { color: #dc2626; font-size: 36px; }
     .mark span { display: block; text-align: center; color: #dc2626; font-size: 10px; letter-spacing: 0.55em; margin-top: 2px; }
-    h1 { align-self: center; font-size: 25px; line-height: 1.08; letter-spacing: 0.03em; margin: 0; text-align: right; white-space: normal; }
-    h2 { margin: 0 0 5px; font-size: 18px; line-height: 1.15; }
+    h1 { align-self: center; font-size: 24px; line-height: 1.08; letter-spacing: 0.02em; margin: 0; text-align: right; white-space: normal; }
+    h2 { margin: 0 0 5px; font-size: 17px; line-height: 1.15; }
     p { margin: 0 0 4px; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #94a3b8; margin-top: 20px; }
     .cell { padding: 10px; }
@@ -2811,21 +3003,29 @@ function buildInvoicePrintHtml({ invoice, items, totals, subtotal, tax, total, b
     .box-title { background: #f1f5f9; border-bottom: 1px solid #94a3b8; padding: 4px 10px; font-weight: 700; }
     .pad { padding: 10px; }
     .blue { color: #075bd8; font-weight: 700; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { border: 1px solid #94a3b8; padding: 8px; vertical-align: top; }
-    th { background: #f1f5f9; text-align: left; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid #94a3b8; padding: 7px; vertical-align: top; }
+    th { background: #f1f5f9; text-align: center; font-weight: 700; }
+    th:nth-child(2) { text-align: left; }
     .right { text-align: right; }
     .summary { display: grid; grid-template-columns: 1.1fr 0.9fr; border-left: 1px solid #94a3b8; border-right: 1px solid #94a3b8; border-bottom: 1px solid #94a3b8; }
-    .summary-left { min-height: 240px; border-right: 1px solid #94a3b8; padding: 12px; }
-    .summary-right { padding: 14px; }
+    .summary-left { min-height: 280px; border-right: 1px solid #94a3b8; padding: 12px; }
+    .summary-right { min-height: 280px; display: grid; grid-template-rows: minmax(0, 1fr) 150px; }
+    .summary-totals { padding: 14px; }
     .line { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 12px; }
     .deduction { color: #dc2626; font-weight: 700; }
     .total { font-size: 18px; font-weight: 900; }
-    .signature { margin-top: 110px; border-top: 1px solid #cbd5e1; padding-top: 12px; text-align: center; }
+    .signature { height: 150px; border-top: 1px solid #94a3b8; display: flex; align-items: flex-end; justify-content: center; padding: 0 0 4px; text-align: center; }
+    .einvoice-block { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; align-items: center; border: 1px solid #94a3b8; border-top: 0; padding: 16px; }
+    .einvoice-block img, .qr-empty { width: 175px; height: 175px; object-fit: contain; }
+    .qr-empty { display: grid; place-items: center; border: 1px dashed #cbd5e1; color: #64748b; font: 12px Arial, sans-serif; text-align: center; }
+    .einvoice-details p { display: grid; grid-template-columns: 95px minmax(0, 1fr); gap: 10px; margin-bottom: 8px; }
+    .einvoice-details b { overflow-wrap: anywhere; }
+    .einvoice-details small { display: block; margin-top: 18px; color: #64748b; }
     @media print {
       body { background: #fff; }
       .screen-actions { display: none; }
-      .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+      .page { width: 210mm; min-height: 297mm; margin: 0; padding: 12mm; box-shadow: none; }
       .top { grid-template-columns: 155px minmax(0, 1fr) 140px; gap: 16px; }
       .brand-logo { width: 155px; height: 70px; }
     }
@@ -2895,17 +3095,20 @@ function buildInvoicePrintHtml({ invoice, items, totals, subtotal, tax, total, b
         ${textBlockHtml('Notes', invoiceNotes)}
       </div>
       <div class="summary-right">
-        <p class="line"><span>Sub Total</span><b>${escapeHtml(formatCurrency(subtotal, documentCurrency))}</b></p>
-        <p class="line"><span>Discount</span><b>${escapeHtml(formatCurrency(totals.discount || 0, documentCurrency))}</b></p>
-        ${taxLines}
-        ${documentType === 'invoices' ? '' : `<p class="line"><span>Round Off</span><b>${escapeHtml(formatCurrency(totals.roundOff || 0, documentCurrency))}</b></p>`}
-        <p class="line total"><span>Total</span><span>${escapeHtml(formatCurrency(total, documentCurrency))}</span></p>
-        ${creditsAppliedLine}
-        ${paymentsReceivedLine}
-        ${balanceLine}
+        <div class="summary-totals">
+          <p class="line"><span>Sub Total</span><b>${escapeHtml(formatCurrency(subtotal, documentCurrency))}</b></p>
+          <p class="line"><span>Discount</span><b>${escapeHtml(formatCurrency(totals.discount || 0, documentCurrency))}</b></p>
+          ${taxLines}
+          ${Math.abs(Number(totals.roundOff || 0)) < 0.005 ? '' : `<p class="line"><span>Round Off</span><b>${escapeHtml(formatCurrency(totals.roundOff || 0, documentCurrency))}</b></p>`}
+          <p class="line total"><span>Total</span><span>${escapeHtml(formatCurrency(total, documentCurrency))}</span></p>
+          ${creditsAppliedLine}
+          ${paymentsReceivedLine}
+          ${balanceLine}
+        </div>
         <div class="signature">Authorized Signature</div>
       </div>
     </section>
+    ${eInvoiceBlock}
   </main>
 </body>
 </html>`;
@@ -3055,7 +3258,52 @@ function invoiceBreakdown(invoice, documentType = 'invoices') {
   };
 }
 
-function InvoiceDocument({ invoice, items = [], totals = {}, subtotal, tax, total, balanceDue, creditsApplied = 0, creditsUsed = 0, creditsRemaining = 0, companyProfile, billTo, documentType = 'invoices' }) {
+function EInvoiceStatusPanel({ eInvoice, cancelling, onCancel, onMessage, onDownload }) {
+  if (eInvoice.status === 'GENERATED') {
+    const copyIrn = async () => {
+      try {
+        await navigator.clipboard.writeText(eInvoice.irn || '');
+        onMessage?.('IRN copied to clipboard.');
+      } catch {
+        onMessage?.('Unable to copy IRN. Please select and copy it manually.');
+      }
+    };
+    return (
+      <section className="mx-auto mb-4 max-w-[940px] rounded-xl border border-emerald-200 bg-white px-5 py-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <FileCheck2 className="h-7 w-7 text-emerald-600" />
+            <h2 className="text-lg font-black text-[#06134a]">e-Invoice</h2>
+            <span className="rounded-full bg-emerald-700 px-4 py-1.5 text-xs font-black uppercase tracking-wide text-white">Pushed</span>
+          </div>
+          <button disabled={cancelling} onClick={onCancel} className="h-10 rounded-lg border border-slate-300 bg-white px-5 text-sm font-black text-slate-800 hover:bg-slate-50 disabled:opacity-50">
+            {cancelling ? 'Cancelling...' : 'Mark As Cancelled'}
+          </button>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-700">
+          <span>An IRN and a QR code have been generated.</span>
+          <button onClick={copyIrn} className="inline-flex items-center gap-1.5 font-black text-blue-600 hover:underline"><Copy className="h-4 w-4" />Copy IRN</button>
+          {eInvoice.acknowledgementNumber && <span className="text-slate-500">Ack No: {eInvoice.acknowledgementNumber}</span>}
+          {eInvoice.acknowledgementDate && <span className="text-slate-500">Ack Date: {new Date(eInvoice.acknowledgementDate).toLocaleString('en-IN')}</span>}
+        </div>
+        <p className="mt-3 break-all text-xs font-semibold text-slate-500">IRN: {eInvoice.irn}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {eInvoice.qrCodeDataUrl && <button onClick={() => window.open(eInvoice.qrCodeDataUrl, '_blank', 'noopener,noreferrer')} className="h-9 rounded-lg border border-slate-300 px-4 text-xs font-black text-slate-700">View QR Code</button>}
+          {onDownload && <button onClick={onDownload} className="h-9 rounded-lg border border-slate-300 px-4 text-xs font-black text-slate-700">Download PDF</button>}
+        </div>
+      </section>
+    );
+  }
+  return (
+    <div className={`mx-auto mb-4 max-w-[940px] rounded-xl border px-5 py-4 text-sm ${eInvoice.status === 'FAILED' ? 'border-red-200 bg-red-50' : eInvoice.status === 'CANCELLED' ? 'border-slate-300 bg-slate-100' : 'border-blue-200 bg-blue-50'}`}>
+      <p className="font-black text-[#06134a]">GST E-Invoice</p>
+      <p className="mt-1 font-semibold text-slate-600">Status: {String(eInvoice.status || '').replaceAll('_', ' ')}</p>
+      {eInvoice.errorMessage && <p className="mt-3 font-bold text-red-700">{eInvoice.errorMessage}</p>}
+    </div>
+  );
+}
+
+function InvoiceDocument({ invoice, items = [], totals = {}, subtotal, tax, total, balanceDue, creditsApplied = 0, creditsUsed = 0, creditsRemaining = 0, companyProfile, billTo, documentType = 'invoices', eInvoice = null }) {
   const config = documentViewConfig(documentType);
   const notes = parseJsonObject(invoice.notes);
   const documentCurrency = normalizeCurrencyCode(notes.Currency || totals.currencyCode);
@@ -3095,7 +3343,7 @@ function InvoiceDocument({ invoice, items = [], totals = {}, subtotal, tax, tota
       }}
     >
       {(documentType === 'invoices' || documentType === 'creditNotes') && invoice.status && <InvoiceStatusRibbon status={invoice.status} />}
-      <header className="grid min-h-[92px] items-start" style={{ gridTemplateColumns: '180px minmax(0,1fr) 165px', gap: 20 }}>
+      <header className="grid min-h-[92px] items-center" style={{ gridTemplateColumns: '180px minmax(0,1fr) 165px', gap: 20 }}>
         <CompanyBrandMark company={company} />
         <div className="min-w-0" style={{ fontSize: 14, lineHeight: 1.42 }}>
           <h2 className="font-bold" style={{ fontSize: 19, lineHeight: 1.16, marginBottom: 5 }}>{company.name}</h2>
@@ -3189,7 +3437,7 @@ function InvoiceDocument({ invoice, items = [], totals = {}, subtotal, tax, tota
       </table>
 
       <section className="grid grid-cols-[1.1fr_0.9fr] border-x border-b border-slate-400">
-        <div className="min-h-64 border-r border-slate-400 p-4">
+        <div className="min-h-72 border-r border-slate-400 p-4">
           <p>Total In Words</p>
           <p className="mt-1 font-bold italic">{amountInWords}</p>
           {(termsAndConditions || invoiceNotes) && (
@@ -3209,21 +3457,34 @@ function InvoiceDocument({ invoice, items = [], totals = {}, subtotal, tax, tota
             </div>
           )}
         </div>
-        <div className="p-4">
-          <p className="flex justify-between"><span>Sub Total</span><b>{formatCurrency(subtotal, documentCurrency)}</b></p>
-          <p className="mt-3 flex justify-between"><span>Discount</span><b>{formatCurrency(totals.discount || 0, documentCurrency)}</b></p>
-          {taxLines.map(([label, value]) => (
-            <p key={label} className="mt-3 flex justify-between"><span>{label}</span><b>{formatCurrency(value, documentCurrency)}</b></p>
-          ))}
-          {documentType !== 'invoices' && <p className="mt-3 flex justify-between"><span>Round Off</span><b>{formatCurrency(totals.roundOff || 0, documentCurrency)}</b></p>}
-          <p className="mt-4 flex justify-between text-lg font-black"><span>Total</span><span>{formatCurrency(total, documentCurrency)}</span></p>
-          {documentType === 'invoices' && creditsApplied > 0.005 && <p className="mt-3 flex justify-between"><span>Credits Applied</span><span className="font-bold text-red-600">(-) {formatCurrency(creditsApplied, documentCurrency)}</span></p>}
-          {documentType === 'invoices' && <p className="mt-4 flex justify-between text-lg font-black"><span>Balance Due</span><span>{formatCurrency(balanceDue, documentCurrency)}</span></p>}
-          {documentType === 'creditNotes' && <p className="mt-3 flex justify-between"><span>Credits Used</span><span className="font-bold text-red-600">(-) {formatCurrency(creditsUsed, documentCurrency)}</span></p>}
-          {documentType === 'creditNotes' && <p className="mt-4 flex justify-between text-lg font-black"><span>Credits Remaining</span><span>{formatCurrency(creditsRemaining, documentCurrency)}</span></p>}
-          <div className="mt-28 border-t border-slate-300 pt-4 text-center">Authorized Signature</div>
+        <div className="grid min-h-72 grid-rows-[minmax(0,1fr)_150px]">
+          <div className="p-4">
+            <p className="flex justify-between"><span>Sub Total</span><b>{formatCurrency(subtotal, documentCurrency)}</b></p>
+            <p className="mt-3 flex justify-between"><span>Discount</span><b>{formatCurrency(totals.discount || 0, documentCurrency)}</b></p>
+            {taxLines.map(([label, value]) => (
+              <p key={label} className="mt-3 flex justify-between"><span>{label}</span><b>{formatCurrency(value, documentCurrency)}</b></p>
+            ))}
+            {Math.abs(Number(totals.roundOff || 0)) >= 0.005 && <p className="mt-3 flex justify-between"><span>Round Off</span><b>{formatCurrency(totals.roundOff || 0, documentCurrency)}</b></p>}
+            <p className="mt-4 flex justify-between text-lg font-black"><span>Total</span><span>{formatCurrency(total, documentCurrency)}</span></p>
+            {documentType === 'invoices' && creditsApplied > 0.005 && <p className="mt-3 flex justify-between"><span>Credits Applied</span><span className="font-bold text-red-600">(-) {formatCurrency(creditsApplied, documentCurrency)}</span></p>}
+            {documentType === 'invoices' && <p className="mt-4 flex justify-between text-lg font-black"><span>Balance Due</span><span>{formatCurrency(balanceDue, documentCurrency)}</span></p>}
+            {documentType === 'creditNotes' && <p className="mt-3 flex justify-between"><span>Credits Used</span><span className="font-bold text-red-600">(-) {formatCurrency(creditsUsed, documentCurrency)}</span></p>}
+            {documentType === 'creditNotes' && <p className="mt-4 flex justify-between text-lg font-black"><span>Credits Remaining</span><span>{formatCurrency(creditsRemaining, documentCurrency)}</span></p>}
+          </div>
+          <div className="flex h-[150px] items-end justify-center border-t border-slate-400 pb-1 text-center">Authorized Signature</div>
         </div>
       </section>
+      {(documentType === 'invoices' || documentType === 'creditNotes') && eInvoice?.status === 'GENERATED' && eInvoice.irn && (
+        <section className="grid grid-cols-[210px_minmax(0,1fr)] items-center gap-5 border-x border-b border-slate-400 p-5">
+          {eInvoice.qrCodeDataUrl ? <img src={eInvoice.qrCodeDataUrl} alt="Government signed e-Invoice QR code" className="h-48 w-48 object-contain" /> : <div className="grid h-48 w-48 place-items-center border border-dashed border-slate-300 text-center text-xs text-slate-500">Signed QR code unavailable</div>}
+          <div className="min-w-0 space-y-2 text-sm">
+            <p className="grid grid-cols-[110px_minmax(0,1fr)] gap-3"><span>IRN :</span><b className="break-all">{eInvoice.irn}</b></p>
+            <p className="grid grid-cols-[110px_minmax(0,1fr)] gap-3"><span>Ack No. :</span><b>{eInvoice.acknowledgementNumber || '-'}</b></p>
+            <p className="grid grid-cols-[110px_minmax(0,1fr)] gap-3"><span>Ack Date :</span><b>{formatDateTime(eInvoice.acknowledgementDate)}</b></p>
+            <p className="pt-3 text-slate-500">e-Invoicing detail(s) generated from the Government&apos;s e-Invoicing system.</p>
+          </div>
+        </section>
+      )}
     </article>
   );
 }
@@ -4786,7 +5047,9 @@ function SalesDocumentCalculatorSection({ document: documentKind = 'invoice', co
   const igst = gstMode === 'IGST' ? calculatedItems.reduce((sum, item) => sum + item.igstAmount * taxRatio, 0) : 0;
   const taxAmount = cgst + sgst + igst;
   const grandTotal = taxableAmount + taxAmount;
-  const shouldRoundToWholeRupee = documentKind !== 'invoice';
+  // Credit notes must retain the invoice's exact paise amount. Rounding an
+  // ₹11.80 invoice credit to ₹12.00 makes it exceed the eligible balance.
+  const shouldRoundToWholeRupee = documentKind !== 'invoice' && documentKind !== 'creditNote';
   const finalGrandTotal = shouldRoundToWholeRupee ? Math.round(grandTotal) : roundCurrency(grandTotal);
   const roundOff = shouldRoundToWholeRupee ? finalGrandTotal - grandTotal : 0;
   const taxRate = calculatedItems.find((item) => Number(item.taxRate) > 0)?.taxRate || 18;
@@ -5001,7 +5264,7 @@ function SalesDocumentCalculatorSection({ document: documentKind = 'invoice', co
               <input type="number" min="0" step="0.01" value={discount} onChange={(event) => setDiscount(Number(event.target.value || 0))} className="h-9 w-32 rounded-lg border border-slate-200 px-3 text-right text-sm font-bold outline-none" />
             </label>
             <p className="flex justify-between"><span>Total Tax</span><span>{formatCurrency(taxAmount, documentCurrency)}</span></p>
-            {documentKind !== 'invoice' && <p className="flex justify-between"><span>Round Off</span><span>{formatCurrency(roundOff, documentCurrency)}</span></p>}
+            {Math.abs(Number(roundOff || 0)) >= 0.005 && <p className="flex justify-between"><span>Round Off</span><span>{formatCurrency(roundOff, documentCurrency)}</span></p>}
             <div className="border-t border-slate-200 pt-4 text-2xl font-black"><p className="flex justify-between"><span>Total ({selectedCurrencySymbol})</span><span>{formatCurrency(finalGrandTotal, documentCurrency)}</span></p></div>
             <p className="rounded-lg bg-blue-50 p-3 text-sm font-bold text-blue-700">{documentMeta.note}</p>
           </div>
@@ -5244,14 +5507,14 @@ function CompanyBrandMark({ company }) {
       <img
         src={logoUrl}
         alt={`${company?.name || 'Company'} logo`}
-        className="h-[78px] w-[180px] shrink-0 object-contain object-left-top"
+        className="h-[78px] w-[180px] shrink-0 self-center object-contain object-left"
         onError={() => setLogoFailed(true)}
       />
     );
   }
 
   return (
-    <div className="font-black tracking-wide text-slate-950" style={{ marginTop: 32, fontSize: 30, whiteSpace: 'nowrap' }}>
+    <div className="self-center font-black tracking-wide text-slate-950" style={{ fontSize: 30, whiteSpace: 'nowrap' }}>
       <span className="text-red-600" style={{ fontSize: 36 }}>C</span> INTELLIATECH
       <p className="mt-1 text-center text-red-600" style={{ fontSize: 10, letterSpacing: '0.55em' }}>SOLUTIONS</p>
     </div>

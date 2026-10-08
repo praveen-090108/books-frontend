@@ -13,6 +13,38 @@ export const invoiceLifecycleApi = {
     const { data } = await httpClient.get(`/invoices/${invoiceId}/lifecycle`);
     return data;
   },
+  getEInvoice: async (invoiceId) => {
+    const { data } = await httpClient.get(`/invoices/${invoiceId}/e-invoice`);
+    return data;
+  },
+  generateIrn: async (invoiceId) => {
+    const { data } = await httpClient.post(`/invoices/${invoiceId}/e-invoice/generate`);
+    return data;
+  },
+  cancelIrn: async ({ invoiceId, reasonCode, remarks = '' }) => {
+    const { data } = await httpClient.post(`/invoices/${invoiceId}/e-invoice/cancel`, { reasonCode, remarks });
+    return data;
+  },
+  refreshIrn: async (invoiceId) => {
+    const { data } = await httpClient.post(`/invoices/${invoiceId}/e-invoice/refresh`);
+    return data;
+  },
+  getCreditNoteEInvoice: async (creditNoteId) => {
+    const { data } = await httpClient.get(`/credit-notes/${creditNoteId}/e-invoice`);
+    return data;
+  },
+  generateCreditNoteIrn: async (creditNoteId) => {
+    const { data } = await httpClient.post(`/credit-notes/${creditNoteId}/e-invoice/generate`);
+    return data;
+  },
+  cancelCreditNoteIrn: async ({ creditNoteId, reasonCode, remarks = '' }) => {
+    const { data } = await httpClient.post(`/credit-notes/${creditNoteId}/e-invoice/cancel`, { reasonCode, remarks });
+    return data;
+  },
+  refreshCreditNoteIrn: async (creditNoteId) => {
+    const { data } = await httpClient.post(`/credit-notes/${creditNoteId}/e-invoice/refresh`);
+    return data;
+  },
   eligibleForCreditNote: async ({ customerId, creditNoteId }) => {
     const { data } = await httpClient.get('/invoices/eligible-for-credit-note', {
       params: {
