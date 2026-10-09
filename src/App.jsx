@@ -1,12 +1,14 @@
 import { AppRoutes } from './routes/AppRoutes.jsx';
-import { LeadModuleErrorBoundary } from './features/leads/LeadModuleErrorBoundary.jsx';
+import { AppErrorBoundary } from './components/AppErrorBoundary.jsx';
+import { GlobalErrorToast } from './components/GlobalErrorToast.jsx';
 import { useLocation } from 'react-router-dom';
 
 export default function App() {
   const location = useLocation();
   return (
-    <LeadModuleErrorBoundary key={location.pathname}>
+    <AppErrorBoundary resetKey={location.pathname}>
+      <GlobalErrorToast />
       <AppRoutes />
-    </LeadModuleErrorBoundary>
+    </AppErrorBoundary>
   );
 }

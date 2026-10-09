@@ -8,6 +8,7 @@ import {
   Clock3,
   Home,
   ContactRound,
+  Menu,
   LogOut,
   Package,
   ReceiptText,
@@ -17,6 +18,7 @@ import {
   ShoppingCart,
   UserRound,
   WalletCards,
+  X,
 } from 'lucide-react';
 import intelliaTechLogo from '../assets/intelliatech-logo-black-tm.png';
 import { useAuthStore } from '../store/authStore.js';
@@ -116,6 +118,7 @@ export function AppLayout() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
   const [leadNotifications, setLeadNotifications] = useState({ content: [], unreadCount: 0 });
 
   useEffect(() => {
@@ -134,6 +137,22 @@ export function AppLayout() {
       window.clearInterval(intervalId);
     };
   }, []);
+
+  useEffect(() => {
+    setIsMobileNavigationOpen(false);
+    setIsNewMenuOpen(false);
+    setIsNotificationOpen(false);
+    setIsUserMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isMobileNavigationOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileNavigationOpen]);
 
   const openNotification = async (notification) => {
     try {
@@ -212,13 +231,24 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-[#f7f8fb] text-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[240px] flex-col overflow-y-auto bg-[#071523] text-white shadow-2xl lg:flex">
-        <div className="flex h-[70px] shrink-0 items-center border-b border-white/10 bg-white px-5">
+      {isMobileNavigationOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          className="fixed inset-0 z-30 bg-slate-950/55 backdrop-blur-[1px] lg:hidden"
+          onClick={() => setIsMobileNavigationOpen(false)}
+        />
+      )}
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[min(280px,86vw)] flex-col overflow-y-auto bg-[#071523] text-white shadow-2xl transition-transform duration-200 lg:w-[240px] lg:translate-x-0 ${isMobileNavigationOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex h-[70px] shrink-0 items-center justify-between border-b border-white/10 bg-white px-5">
           <img
             src={intelliaTechLogo}
             alt="IntelliaTech"
             className="h-auto w-[190px] object-contain"
           />
+          <button type="button" onClick={() => setIsMobileNavigationOpen(false)} aria-label="Close menu" className="grid h-10 w-10 place-items-center rounded-lg text-slate-700 hover:bg-slate-100 lg:hidden">
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <nav className="grid shrink-0 gap-2 px-4 py-4">
@@ -401,8 +431,13 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <div className="lg:pl-[240px]">
-        <header className="sticky top-0 z-20 flex h-[70px] items-center gap-5 border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:px-8">
+      <div className="min-w-0 lg:pl-[240px]">
+        <header className="sticky top-0 z-20 flex h-[70px] items-center gap-2 border-b border-slate-200 bg-white/95 px-3 backdrop-blur sm:gap-3 sm:px-4 md:gap-5 md:px-8">
+          <button type="button" onClick={() => setIsMobileNavigationOpen(true)} aria-label="Open navigation" aria-expanded={isMobileNavigationOpen} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 lg:hidden">
+            <Menu className="h-5 w-5" />
+          </button>
+          <img src={intelliaTechLogo} alt="IntelliaTech" className="h-auto w-[118px] object-contain sm:w-[145px] lg:hidden" />
+          <span className="min-w-0 flex-1 md:hidden" />
           <div className="hidden min-w-0 flex-1 md:block">
             <div className="relative max-w-[520px]">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
@@ -493,10 +528,10 @@ export function AppLayout() {
               </div>
             )}
           </div>
-          <button className="grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-white text-slate-700">
+          <button aria-label="Settings" onClick={() => navigate('/settings')} className="hidden h-10 w-10 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 sm:grid">
             <Settings className="h-5 w-5" />
           </button>
-          <div className="relative flex items-center gap-3 border-l border-slate-200 pl-4">
+          <div className="relative flex items-center gap-3 border-l border-slate-200 pl-2 sm:pl-4">
             <div className="hidden text-right lg:block">
               <p className="text-sm font-black text-[#06134a]">{user?.name || 'User'}</p>
               <p className="text-xs font-bold text-red-600">{user?.roleLabel || user?.role}</p>
@@ -539,7 +574,7 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main className="px-4 py-4 md:px-6">
+        <main className="min-w-0 overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4 md:px-6">
           <Outlet />
         </main>
       </div>

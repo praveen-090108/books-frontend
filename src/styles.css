@@ -42,6 +42,101 @@ body {
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+main,
+main section,
+main article,
+main form,
+main fieldset,
+main .grid,
+main .flex {
+  min-width: 0;
+}
+
+main input,
+main select,
+main textarea {
+  max-width: 100%;
+}
+
+/* Tables retain readable columns and scroll inside their card on narrow screens. */
+main :is(.overflow-x-auto, [class*="overflow-x-auto"]) {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  :root {
+    font-size: 13px;
+  }
+
+  main h1 {
+    font-size: clamp(1.5rem, 7vw, 2rem) !important;
+    line-height: 1.18 !important;
+  }
+
+  main h2 {
+    line-height: 1.25;
+  }
+
+  main section > :is(.flex, header.flex):has(> div > h1),
+  main section > :is(.flex, header.flex):has(> h1) {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  main section > :is(.flex, header.flex):has(> div > h1) > :last-child,
+  main section > :is(.flex, header.flex):has(> h1) > :last-child {
+    max-width: 100%;
+  }
+
+  main :is(button, a)[class*="h-10"],
+  main :is(button, a)[class*="h-11"] {
+    min-height: 42px;
+  }
+
+  main [role="dialog"],
+  main .fixed.inset-0 > form,
+  main .fixed.inset-0 > div {
+    max-height: calc(100dvh - 1.5rem);
+    max-width: calc(100vw - 1.5rem);
+    overflow-y: auto;
+  }
+
+  .expense-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .expense-filter-row > :first-child {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 479px) {
+  main .grid[class*="grid-cols-2"]:not([class*="sm:grid-cols-2"]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  main .flex.justify-end,
+  main .flex.justify-between {
+    row-gap: .65rem;
+  }
+}
+
 /* Shared compact report filters. Dedicated rules are used because the local
    source server does not generate every arbitrary Tailwind grid template. */
 .report-filter-scroll {
